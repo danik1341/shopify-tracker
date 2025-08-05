@@ -1,8 +1,8 @@
 // === Config ===
 const CONFIG = {
-  BACKEND_URL: "http://localhost:3030/track-session", // ← Replace this for production
-  IDLE_PING_INTERVAL: 60000, // 60s fallback ping
-  POPUP_COOLDOWN: 30000,     // 30s between popups
+  BACKEND_URL: "http://localhost:3030/track-session", // ← Replace this in production
+  PING_INTERVAL: 10000, // ms
+  POPUP_COOLDOWN: 30000, // ms
 };
 
 // === Load Axios from CDN ===
@@ -14,13 +14,14 @@ const CONFIG = {
   document.head.appendChild(script);
 })(initTracker);
 
-// === Tracker Logic ===
+// === Main Tracker ===
 function initTracker() {
   let sessionStart = Date.now();
   let previousCartCount = 0;
   let lastPopupTime = 0;
+  let eventBuffer = [];
 
-  async function getSessionData(trigger) {
+  async function getSessionData() {
     const timeOnSite = Math.floor((Date.now() - sessionStart) / 1000);
     const currentPage = window.location.pathname;
 
@@ -28,11 +29,10 @@ function initTracker() {
       const res = await axios.get("/cart.js");
       const cart = res.data;
       const currentCartCount = cart.items?.length || 0;
-      const events = [];
 
-      // Detect cart change
+      // Detect cart changes
       if (currentCartCount !== previousCartCount) {
-        events.push({
+        eventBuffer.push({
           type: "cart_change",
           delta: currentCartCount - previousCartCount,
           at: Date.now(),
@@ -40,20 +40,24 @@ function initTracker() {
         previousCartCount = currentCartCount;
       }
 
-      // Always track page view
-      events.push({
+      // Always log page view
+      eventBuffer.push({
         type: "page_view",
         url: currentPage,
         at: Date.now(),
       });
 
-      return {
+      const payload = {
         time_on_site: timeOnSite,
         current_page: currentPage,
         cart_items: currentCartCount,
-        events,
-        trigger,
+        events: [...eventBuffer],
       };
+
+      // Clear event buffer after sending
+      eventBuffer = [];
+
+      return payload;
     } catch (err) {
       console.error("Cart fetch error", err);
       return {
@@ -61,17 +65,17 @@ function initTracker() {
         current_page: currentPage,
         cart_items: 0,
         events: [],
-        trigger,
       };
     }
   }
 
-  async function sendSessionData(trigger = "interval") {
+  async function sendSessionData() {
     try {
-      const payload = await getSessionData(trigger);
+      const payload = await getSessionData();
       const res = await axios.post(CONFIG.BACKEND_URL, payload);
       const data = res.data;
 
+      // Show message only if allowed and cooldown passed
       const now = Date.now();
       if (data?.show && data?.message && now - lastPopupTime > CONFIG.POPUP_COOLDOWN) {
         lastPopupTime = now;
@@ -84,43 +88,40 @@ function initTracker() {
 
   function showMessage(message) {
     const modal = document.createElement("div");
-    modal.className = `
-      fixed bottom-6 right-6 max-w-md bg-blue-50 border border-blue-300 
-      rounded-xl shadow-xl p-5 z-50 transition-opacity
-    `;
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    modal.className =
+      `fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 border max-w-sm transition-all duration-300
+      ${prefersDark ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-800 border-gray-200'}`;
     modal.innerHTML = `
-      <div class="flex justify-between items-start">
-        <div>
-          <h3 class="text-blue-800 font-semibold mb-1">Special Offer</h3>
-          <p class="text-blue-900 text-sm">${message}</p>
-        </div>
-        <button class="ml-4 text-blue-500 hover:text-blue-700 text-lg font-bold">×</button>
-      </div>
+      <p class="text-sm">${message}</p>
+      <button class="mt-2 text-sm underline">Close</button>
     `;
+
     document.body.appendChild(modal);
+
     modal.querySelector("button").onclick = () => modal.remove();
-    setTimeout(() => modal.remove(), 20000); // auto-hide after 20s
+    setTimeout(() => modal.remove(), 10000); // auto-hide
   }
 
-  // === Triggers ===
-  window.addEventListener("pageshow", () => sendSessionData("page_load"));
+  function observeAddToCart() {
+    document.body.addEventListener("click", (e) => {
+      const btn = e.target.closest("button, input[type='submit']");
+      if (!btn) return;
 
-  // Watch for cart changes (poll every 5s)
-  setInterval(() => {
-    axios.get("/cart.js")
-      .then(res => {
-        const count = res.data.items?.length || 0;
-        if (count !== previousCartCount) {
-          previousCartCount = count;
-          sendSessionData("cart_change");
-        }
-      })
-      .catch(() => {}); // silent fail
-  }, 5000);
+      const text = btn.innerText?.toLowerCase() || btn.value?.toLowerCase() || "";
 
-  // Fallback ping every minute
-  setInterval(() => sendSessionData("idle_ping"), CONFIG.IDLE_PING_INTERVAL);
+      if (text.includes("add to cart")) {
+        eventBuffer.push({
+          type: "add_to_cart_click",
+          at: Date.now(),
+        });
+      }
+    });
+  }
 
-  // Initial ping
-  sendSessionData("init");
+  // Start tracking
+  sendSessionData();
+  setInterval(sendSessionData, CONFIG.PING_INTERVAL);
+  observeAddToCart();
 }
