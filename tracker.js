@@ -1,10 +1,11 @@
 // === Config ===
 const CONFIG = {
-  BACKEND_URL: "http://localhost:3030/track-session", // ← Replace with your backend URL
-  PING_INTERVAL: 10000, // in ms
+  BACKEND_URL: "http://localhost:3030/track-session", // ← Replace this in production
+  PING_INTERVAL: 10000, // ms
+  POPUP_COOLDOWN: 30000, // ms
 };
 
-// === Load axios from CDN ===
+// === Load Axios from CDN ===
 (function loadAxios(callback) {
   if (window.axios) return callback();
   const script = document.createElement("script");
@@ -13,34 +14,72 @@ const CONFIG = {
   document.head.appendChild(script);
 })(initTracker);
 
+// === Main Tracker ===
 function initTracker() {
   let sessionStart = Date.now();
   let previousCartCount = 0;
+  let lastPopupTime = 0;
 
-  function getSessionData() {
+  async function getSessionData() {
     const timeOnSite = Math.floor((Date.now() - sessionStart) / 1000);
     const currentPage = window.location.pathname;
-    const cartItems = Shopify?.cart?.items?.length || 0;
 
-    return {
-      time_on_site: timeOnSite,
-      current_page: currentPage,
-      cart_items: cartItems,
-      events: [], // TODO later
-    };
+    try {
+      const res = await axios.get("/cart.js");
+      const cart = res.data;
+      const currentCartCount = cart.items?.length || 0;
+
+      const events = [];
+
+      // Detect cart changes
+      if (currentCartCount !== previousCartCount) {
+        events.push({
+          type: "cart_change",
+          delta: currentCartCount - previousCartCount,
+          at: Date.now(),
+        });
+        previousCartCount = currentCartCount;
+      }
+
+      // Always track page view
+      events.push({
+        type: "page_view",
+        url: currentPage,
+        at: Date.now(),
+      });
+
+      return {
+        time_on_site: timeOnSite,
+        current_page: currentPage,
+        cart_items: currentCartCount,
+        events,
+      };
+    } catch (err) {
+      console.error("Cart fetch error", err);
+      return {
+        time_on_site: timeOnSite,
+        current_page: currentPage,
+        cart_items: 0,
+        events: [],
+      };
+    }
   }
 
-  function sendSessionData() {
-    const payload = getSessionData();
+  async function sendSessionData() {
+    try {
+      const payload = await getSessionData();
+      const res = await axios.post(CONFIG.BACKEND_URL, payload);
+      const data = res.data;
 
-    axios.post(CONFIG.BACKEND_URL, payload)
-      .then((res) => {
-        const data = res.data;
-        if (data?.show && data?.message) {
-          showMessage(data.message);
-        }
-      })
-      .catch((err) => console.error("Session API error:", err));
+      // Show message only if allowed and not too frequent
+      const now = Date.now();
+      if (data?.show && data?.message && now - lastPopupTime > CONFIG.POPUP_COOLDOWN) {
+        lastPopupTime = now;
+        showMessage(data.message);
+      }
+    } catch (err) {
+      console.error("Session API error:", err);
+    }
   }
 
   function showMessage(message) {
@@ -54,12 +93,10 @@ function initTracker() {
     document.body.appendChild(modal);
 
     modal.querySelector("button").onclick = () => modal.remove();
-    setTimeout(() => modal.remove(), 10000); // auto-hide after 10s
+    setTimeout(() => modal.remove(), 10000);
   }
 
-  // === Track session every N seconds ===
-  setInterval(sendSessionData, CONFIG.PING_INTERVAL);
-
-  // Send one immediately
+  // Initial + repeated ping
   sendSessionData();
+  setInterval(sendSessionData, CONFIG.PING_INTERVAL);
 }
