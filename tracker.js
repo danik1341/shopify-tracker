@@ -1,23 +1,3 @@
-// (
-//     function() {
-//         const API_URL = "http://localhost:3030/track-session"
-//         const sessionData = {
-//             events: [],
-//             current_page: window.location.pathname,
-//             cart_items: 0,
-//             time_on_site: 0,
-//   };
-
-//         let startTime = Date.now();
-
-//         document.addEventListener("click", (e) => {
-//             const target = e.target.closest("[data-track]")
-//             if (target) {
-//                 const eventName = target.getAttribute
-//             }
-//         })
-//     }
-// )
 (function () {
   const BACKEND_URL = "http://localhost:3030/track-session";
   const sessionData = {
