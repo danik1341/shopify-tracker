@@ -189,7 +189,42 @@ function initTracker() {
    * Listen for add-to-cart clicks.
    * Triggers an "add_to_cart" event if the item appears in the cart afterward.
    */
-  async function observeAddToCartClicks() {
+  //   async function observeAddToCartClicks() {
+  //     document.body.addEventListener("click", (e) => {
+  //       const btn = e.target.closest("button, input[type='submit']");
+  //       if (!btn) return;
+
+  //       const form = btn.closest("form");
+  //       const variantInput = form?.querySelector('input[name="id"]');
+  //       const variantId = variantInput?.value;
+
+  //       const text = (btn.innerText || btn.value || "").toLowerCase();
+  //       if (text.includes("add to cart")) {
+  //         eventBuffer.push({
+  //           type: "add_to_cart_click",
+  //           at: now(),
+  //           variant_id: variantId,
+  //         });
+
+  //         setTimeout(async () => {
+  //           const cart = await axios
+  //             .get("/cart.js")
+  //             .then((r) => r.data)
+  //             .catch(() => null);
+  //           if (!cart) return;
+
+  //           const alreadyInCart = cart.items.some(
+  //             (item) => item.variant_id === variantId
+  //           );
+  //           if (!alreadyInCart) return;
+
+  //           clearAllPopups();
+  //           triggerTracker("add_to_cart");
+  //         }, 1200);
+  //       }
+  //     });
+  //   }
+  function observeAddToCartClicks() {
     document.body.addEventListener("click", (e) => {
       const btn = e.target.closest("button, input[type='submit']");
       if (!btn) return;
@@ -199,29 +234,20 @@ function initTracker() {
       const variantId = variantInput?.value;
 
       const text = (btn.innerText || btn.value || "").toLowerCase();
-      if (text.includes("add to cart")) {
-        eventBuffer.push({
-          type: "add_to_cart_click",
-          at: now(),
-          variant_id: variantId,
-        });
+      if (!text.includes("add to cart")) return;
 
-        setTimeout(async () => {
-          const cart = await axios
-            .get("/cart.js")
-            .then((r) => r.data)
-            .catch(() => null);
-          if (!cart) return;
+      // Track the click event immediately
+      eventBuffer.push({
+        type: "add_to_cart_click",
+        at: now(),
+        ...(variantId && { variant_id: variantId }),
+      });
 
-          const alreadyInCart = cart.items.some(
-            (item) => item.variant_id === variantId
-          );
-          if (!alreadyInCart) return;
-
-          clearAllPopups();
-          triggerTracker("add_to_cart");
-        }, 1200);
-      }
+      // Wait a moment for cart to update, then send the event (always)
+      setTimeout(() => {
+        clearAllPopups(); // replace whatever message is showing
+        triggerTracker("add_to_cart");
+      }, 1000);
     });
   }
 
