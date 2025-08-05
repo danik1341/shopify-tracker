@@ -176,54 +176,13 @@ function initTracker() {
    * Listen for SPA-style page navigation changes
    * Trigger appropriate page view or welcome event
    */
-  let previousPath = window.location.pathname;
-  setInterval(() => {
-    const currentPath = window.location.pathname;
-    if (currentPath !== previousPath) {
-      previousPath = currentPath;
-      triggerTracker(currentPath === "/" ? "home_welcome" : "page_view");
-    }
-  }, 800);
+  const path = window.location.pathname;
+  triggerTracker(path === "/" ? "home_welcome" : "page_view");
 
   /**
    * Listen for add-to-cart clicks.
    * Triggers an "add_to_cart" event if the item appears in the cart afterward.
    */
-  //   async function observeAddToCartClicks() {
-  //     document.body.addEventListener("click", (e) => {
-  //       const btn = e.target.closest("button, input[type='submit']");
-  //       if (!btn) return;
-
-  //       const form = btn.closest("form");
-  //       const variantInput = form?.querySelector('input[name="id"]');
-  //       const variantId = variantInput?.value;
-
-  //       const text = (btn.innerText || btn.value || "").toLowerCase();
-  //       if (text.includes("add to cart")) {
-  //         eventBuffer.push({
-  //           type: "add_to_cart_click",
-  //           at: now(),
-  //           variant_id: variantId,
-  //         });
-
-  //         setTimeout(async () => {
-  //           const cart = await axios
-  //             .get("/cart.js")
-  //             .then((r) => r.data)
-  //             .catch(() => null);
-  //           if (!cart) return;
-
-  //           const alreadyInCart = cart.items.some(
-  //             (item) => item.variant_id === variantId
-  //           );
-  //           if (!alreadyInCart) return;
-
-  //           clearAllPopups();
-  //           triggerTracker("add_to_cart");
-  //         }, 1200);
-  //       }
-  //     });
-  //   }
   function observeAddToCartClicks() {
     document.body.addEventListener("click", (e) => {
       const btn = e.target.closest("button, input[type='submit']");
