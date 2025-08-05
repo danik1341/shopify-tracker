@@ -85,7 +85,7 @@ const CONFIG = {
 
       const modal = document.createElement("div");
       modal.className = `
-        shopify-tracker-popup fixed bottom-6 left-6 p-6 rounded-xl z-1000 shadow-lg max-w-[95vw] w-[95%] sm:w-[420px]
+        shopify-tracker-popup fixed bottom-6 left-6 p-6 rounded-xl z-1000 shadow-lg max-w-lg w-[95%] sm:w-[420px]
         ${prefersDark ? 'bg-gray-800 text-white border border-gray-700' : 'bg-white text-gray-800 border border-gray-200'}
         transition-opacity duration-300 opacity-0
       `.trim();
