@@ -2,6 +2,7 @@ const CONFIG = {
     BACKEND_URL: "http://localhost:3030/track-session", // Replace in production
     PING_INTERVAL: 60000, // ms
     POPUP_COOLDOWN: 30000, // ms
+    MODAL_DURATION: 10000, // How long the popup stays ms
   };
 
   (function loadAxios(callback) {
@@ -14,9 +15,29 @@ const CONFIG = {
 
   function initTracker() {
     let sessionStart = Date.now();
-    let previousCartCount = 0;
     let lastPopupTime = 0;
+    let lastPathname = window.location.pathname;
+    let modalShowing = false;
+    let previousCartCount = 0;
     let eventBuffer = [];
+
+    function canShowMessage() {
+        const now = Date.now()
+        return !modalShowing && now - lastPopupTime > CONFIG.POPUP_COOLDOWN
+    }
+
+    function trackPageView() {
+        const currentPath = window.location.pathname
+        if (currentPath !== lastPathname) {
+            lastPathname = currentPath
+            triggerTracker("page_view")
+        }
+    }
+
+    function triggerTracker(reason = "") {
+        if (!canShowMessage() && reason !== "add_to_cart") return
+        sendSessionData()
+    }
 
     async function getSessionData() {
       const timeOnSite = Math.floor((Date.now() - sessionStart) / 1000);
@@ -71,9 +92,9 @@ const CONFIG = {
         const data = res.data;
 
         const now = Date.now();
-        if (data?.show && data?.message && now - lastPopupTime > CONFIG.POPUP_COOLDOWN) {
-          lastPopupTime = now;
-          showMessage(data.message);
+        if (data?.show && data?.message && canShowMessage()) {
+            showMessage(data.message);
+            lastPopupTime = now;
         }
       } catch (err) {
         console.error("Session API error:", err);
@@ -99,7 +120,10 @@ const CONFIG = {
       requestAnimationFrame(() => (modal.style.opacity = "1"));
 
       modal.querySelector("button").onclick = () => modal.remove();
-      setTimeout(() => modal.remove(), 10000);
+      setTimeout(() => {
+        modal.remove()
+        modalShowing = false
+      }, CONFIG.MODAL_DURATION);
     }
 
     // === Listen for Add to Cart Events ===
@@ -110,13 +134,24 @@ const CONFIG = {
         const text = (btn.innerText || btn.value || "").toLowerCase();
         if (text.includes("add to cart")) {
           eventBuffer.push({ type: "add_to_cart_click", at: Date.now() });
-          setTimeout(sendSessionData, 1000); // Delay to allow cart to update
+          setTimeout(sendSessionData, 1200); // Delay to allow cart to update
         }
       });
     }
 
-    // === Start Tracker ===
+    // Trigger on homepage load (welcome)
+    if (window.location.pathname === "/") {
+        triggerTracker("home_welcome")
+    }
+
+    // Track on page change
+    setInterval(trackPageView, 1000)
+
+    // Background ping every 60s (PING_INTERVAL)
+    setInterval(() => {
+        if (canShowMessage()) triggerTracker("interval_ping")
+    }, CONFIG.PING_INTERVAL)
+
+    // Track on add items to cart
     observeAddToCartClicks();
-    sendSessionData();
-    setInterval(sendSessionData, CONFIG.PING_INTERVAL);
   }
