@@ -85,14 +85,14 @@ const CONFIG = {
 
       const modal = document.createElement("div");
       modal.className = `
-        shopify-tracker-popup fixed bottom-6 right-6 p-5 rounded-xl z-50 shadow-lg max-w-sm
+        shopify-tracker-popup fixed bottom-6 left-6 p-6 rounded-xl z-50 shadow-lg max-w-md w-[90%] sm:w-96
         ${prefersDark ? 'bg-gray-800 text-white border border-gray-700' : 'bg-white text-gray-800 border border-gray-200'}
         transition-opacity duration-300 opacity-0
       `.trim();
 
       modal.innerHTML = `
-        <p class="text-base leading-relaxed">${message}</p>
-        <button class="mt-3 text-sm text-blue-500 underline hover:text-blue-700">Close</button>
+        <div class="text-base leading-relaxed font-medium">${message}</div>
+        <button class="mt-4 text-sm text-blue-500 underline hover:text-blue-700">Close</button>
       `;
 
       document.body.appendChild(modal);
