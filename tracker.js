@@ -1,8 +1,8 @@
 // === Config ===
 const CONFIG = {
   BACKEND_URL: "http://localhost:3030/track-session", // ← Replace this in production
-  PING_INTERVAL: 10000, // ms
-  POPUP_COOLDOWN: 30000, // ms
+  PING_INTERVAL: 120000, // ms
+  POPUP_COOLDOWN: 60000, // ms
 };
 
 // === Load Axios from CDN ===
