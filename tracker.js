@@ -1,157 +1,242 @@
 const CONFIG = {
-    BACKEND_URL: "http://localhost:3030/track-session", // Replace in production
-    PING_INTERVAL: 60000, // ms
-    POPUP_COOLDOWN: 30000, // ms
-    MODAL_DURATION: 10000, // How long the popup stays ms
-  };
+  BACKEND_URL: "http://localhost:3030/track-session", // Replace with production backend API URL
+  PING_INTERVAL: 60000, // Ping the server every Xms
+  POPUP_COOLDOWN: 30000, // Minimum time between visible popups, in ms
+  MODAL_DURATION: 10000, // How long the popup stays on screen, in ms
+};
 
-  (function loadAxios(callback) {
-    if (window.axios) return callback();
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js";
-    script.onload = callback;
-    document.head.appendChild(script);
-  })(initTracker);
+// === Load Axios ===
+(function loadAxios(callback) {
+  if (window.axios) return callback();
+  const script = document.createElement("script");
+  script.src = "https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js";
+  script.onload = callback;
+  document.head.appendChild(script);
+})(initTracker);
 
-  function initTracker() {
-    let sessionStart = Date.now();
-    let lastPopupTime = 0;
-    let lastPathname = window.location.pathname;
-    let modalShowing = false;
-    let previousCartCount = 0;
-    let eventBuffer = [];
+// === Main Tracking Logic ===
+function initTracker() {
+  // === Runtime state ===
+  let sessionStart = Date.now();
+  let previousCartCount = 0;
+  let eventBuffer = [];
 
-    function canShowMessage() {
-        const now = Date.now()
-        return !modalShowing && now - lastPopupTime > CONFIG.POPUP_COOLDOWN
+  // === Persistent state keys ===
+  const cooldownKey = "shopify_tracker_last_popup"; // Timestamp of last popup
+  const popupKey = "shopify_tracker_popup_visible"; // Whether a popup is currently visible
+
+  // === Utility ===
+  function now() {
+    return Date.now();
+  }
+
+  /**
+   * Whether a new popup message can be shown.
+   * Ignores cooldown for add-to-cart events (they're higher priority).
+   */
+  function canShowMessage(reason = "") {
+    const lastShown = parseInt(localStorage.getItem(cooldownKey), 10) || 0;
+    const isPopupVisible = localStorage.getItem(popupKey) === "1";
+
+    if (reason === "add_to_cart") return true;
+
+    return !isPopupVisible && now() - lastShown > CONFIG.POPUP_COOLDOWN;
+  }
+
+  function markMessageShown() {
+    localStorage.setItem(cooldownKey, now());
+    localStorage.setItem(popupKey, "1");
+  }
+
+  function clearPopupState() {
+    localStorage.setItem(popupKey, "0");
+  }
+
+  function clearAllPopups() {
+    document
+      .querySelectorAll(".shopify-tracker-popup")
+      .forEach((p) => p.remove());
+    clearPopupState();
+  }
+
+  /**
+   * Trigger the tracker manually with a reason (page_view, add_to_cart, etc.)
+   * Will skip if not allowed (e.g., due to cooldown), except for add_to_cart events.
+   */
+  async function triggerTracker(reason = "") {
+    if (!canShowMessage(reason)) return;
+
+    try {
+      const payload = await getSessionData(reason);
+      if (!payload) return;
+
+      const res = await axios.post(CONFIG.BACKEND_URL, payload);
+      const data = res.data;
+
+      if (data?.show && data?.message) {
+        showMessage(data.message);
+      }
+    } catch (err) {
+      console.error("Session API error:", err);
     }
+  }
 
-    function trackPageView() {
-        const currentPath = window.location.pathname
-        if (currentPath !== lastPathname) {
-            lastPathname = currentPath
-            triggerTracker("page_view")
-        }
-    }
+  /**
+   * Collect session data, including time on site, current page, and cart info.
+   * Includes buffered events like cart changes or page views.
+   */
+  async function getSessionData(reason) {
+    const time_on_site = Math.floor((now() - sessionStart) / 1000);
+    const current_page = window.location.pathname;
 
-    function triggerTracker(reason = "") {
-        if (!canShowMessage() && reason !== "add_to_cart") return
-        sendSessionData()
-    }
+    try {
+      const res = await axios.get("/cart.js");
+      const cart = res.data;
+      const currentCartCount = cart.items?.length || 0;
 
-    async function getSessionData() {
-      const timeOnSite = Math.floor((Date.now() - sessionStart) / 1000);
-      const currentPage = window.location.pathname;
-
-      try {
-        const res = await axios.get("/cart.js");
-        const cart = res.data;
-        const currentCartCount = cart.items?.length || 0;
-
-        // Detect cart changes
-        if (currentCartCount !== previousCartCount) {
-          eventBuffer.push({
-            type: "cart_change",
-            delta: currentCartCount - previousCartCount,
-            at: Date.now(),
-          });
-          previousCartCount = currentCartCount;
-        }
-
-        // Always track page view
+      // Detect cart changes
+      if (currentCartCount !== previousCartCount) {
         eventBuffer.push({
-          type: "page_view",
+          type: "cart_change",
+          delta: currentCartCount - previousCartCount,
+          at: now(),
+        });
+        previousCartCount = currentCartCount;
+      }
+
+      if (reason === "page_view" || reason === "home_welcome")
+        eventBuffer.push({
+          type: reason,
           url: currentPage,
-          at: Date.now(),
+          at: now(),
         });
 
-        const payload = {
-          time_on_site: timeOnSite,
-          current_page: currentPage,
-          cart_items: currentCartCount,
-          events: [...eventBuffer],
-        };
-
-        eventBuffer = [];
-        return payload;
-      } catch (err) {
-        console.error("Cart fetch error", err);
-        return {
-          time_on_site: timeOnSite,
-          current_page: currentPage,
-          cart_items: 0,
-          events: [],
-        };
-      }
+      return {
+        time_on_site,
+        current_page,
+        cart_items: currentCartCount,
+        events: [...eventBuffer],
+      };
+    } catch (err) {
+      console.error("Cart fetch error", err);
+      return {
+        time_on_site,
+        current_page,
+        cart_items: 0,
+        events: [],
+      };
+    } finally {
+      eventBuffer = [];
     }
-
-    async function sendSessionData() {
-      try {
-        const payload = await getSessionData();
-        const res = await axios.post(CONFIG.BACKEND_URL, payload);
-        const data = res.data;
-
-        const now = Date.now();
-        if (data?.show && data?.message && canShowMessage()) {
-            showMessage(data.message);
-            lastPopupTime = now;
-        }
-      } catch (err) {
-        console.error("Session API error:", err);
-      }
-    }
-
-    function showMessage(message) {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-      const modal = document.createElement("div");
-      modal.className = `
-        shopify-tracker-popup fixed bottom-6 left-6 p-6 rounded-xl z-1000 shadow-lg max-w-lg w-[95%] sm:w-[420px]
-        ${prefersDark ? 'bg-gray-800 text-white border border-gray-700' : 'bg-white text-gray-800 border border-gray-200'}
-        transition-opacity duration-300 opacity-0
-      `.trim();
-
-      modal.innerHTML = `
-        <div class="text-lg leading-relaxed font-medium">${message}</div>
-        <button class="mt-4 text-sm text-blue-500 underline hover:text-blue-700">Close</button>
-      `;
-
-      document.body.appendChild(modal);
-      requestAnimationFrame(() => (modal.style.opacity = "1"));
-
-      modal.querySelector("button").onclick = () => modal.remove();
-      setTimeout(() => {
-        modal.remove()
-        modalShowing = false
-      }, CONFIG.MODAL_DURATION);
-    }
-
-    // === Listen for Add to Cart Events ===
-    function observeAddToCartClicks() {
-      document.body.addEventListener("click", (e) => {
-        const btn = e.target.closest("button, input[type='submit']");
-        if (!btn) return;
-        const text = (btn.innerText || btn.value || "").toLowerCase();
-        if (text.includes("add to cart")) {
-          eventBuffer.push({ type: "add_to_cart_click", at: Date.now() });
-          setTimeout(sendSessionData, 1200); // Delay to allow cart to update
-        }
-      });
-    }
-
-    // Trigger on homepage load (welcome)
-    if (window.location.pathname === "/") {
-        triggerTracker("home_welcome")
-    }
-
-    // Track on page change
-    setInterval(trackPageView, 1000)
-
-    // Background ping every 60s (PING_INTERVAL)
-    setInterval(() => {
-        if (canShowMessage()) triggerTracker("interval_ping")
-    }, CONFIG.PING_INTERVAL)
-
-    // Track on add items to cart
-    observeAddToCartClicks();
   }
+
+  /**
+   * Display the popup modal with the given message
+   * Auto-dismisses after duration or if manually closed
+   */
+  function showMessage(message) {
+    clearAllPopups();
+    markMessageShown();
+    const prefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)"
+    ).matches;
+
+    const modal = document.createElement("div");
+    modal.className = `
+            shopify-tracker-popup fixed bottom-6 left-6 p-6 rounded-xl z-1000 shadow-lg max-w-lg w-[95%] sm:w-[420px]
+            ${
+              prefersDark
+                ? "bg-gray-800 text-white border border-gray-700"
+                : "bg-white text-gray-800 border border-gray-200"
+            }
+            transition-opacity duration-300 opacity-0
+        `.trim();
+
+    modal.innerHTML = `
+            <div class="text-lg leading-relaxed font-medium">${message}</div>
+            <button class="mt-4 text-sm text-blue-500 underline hover:text-blue-700">Close</button>
+        `;
+
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => (modal.style.opacity = "1"));
+    localStorage.setItem(popupKey, "1");
+
+    modal.querySelector("button").onclick = () => {
+      modal.remove();
+      clearPopupState();
+    };
+
+    setTimeout(() => {
+      modal.remove();
+      clearPopupState();
+    }, CONFIG.MODAL_DURATION);
+  }
+
+  /**
+   * Listen for SPA-style page navigation changes
+   * Trigger appropriate page view or welcome event
+   */
+  let previousPath = window.location.pathname;
+  setInterval(() => {
+    const currentPath = window.location.pathname;
+    if (currentPath !== previousPath) {
+      previousPath = currentPath;
+      triggerTracker(currentPath === "/" ? "home_welcome" : "page_view");
+    }
+  }, 800);
+
+  /**
+   * Listen for add-to-cart clicks.
+   * Triggers an "add_to_cart" event if the item appears in the cart afterward.
+   */
+  async function observeAddToCartClicks() {
+    document.body.addEventListener("click", (e) => {
+      const btn = e.target.closest("button, input[type='submit']");
+      if (!btn) return;
+
+      const form = btn.closest("form");
+      const variantInput = form?.querySelector('input[name="id"]');
+      const variantId = variantInput?.value;
+
+      const text = (btn.innerText || btn.value || "").toLowerCase();
+      if (text.includes("add to cart")) {
+        eventBuffer.push({
+          type: "add_to_cart_click",
+          at: now(),
+          variant_id: variantId,
+        });
+
+        setTimeout(async () => {
+          const cart = await axios
+            .get("/cart.js")
+            .then((r) => r.data)
+            .catch(() => null);
+          if (!cart) return;
+
+          const alreadyInCart = cart.items.some(
+            (item) => item.variant_id === variantId
+          );
+          if (!alreadyInCart) return;
+
+          clearAllPopups();
+          triggerTracker("add_to_cart");
+        }, 1200);
+      }
+    });
+  }
+
+  // === Initial Triggers ===
+
+  // Fire "welcome" message on initial load if home page
+  if (window.location.pathname === "/") {
+    triggerTracker("home_welcome");
+  }
+
+  // Fire periodic pings every 60s (PING_INTERVAL) — only if allowed to show message
+  setInterval(() => {
+    if (canShowMessage()) triggerTracker("interval_ping");
+  }, CONFIG.PING_INTERVAL);
+
+  // Observe cart button clicks
+  observeAddToCartClicks();
+}
