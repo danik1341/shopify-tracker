@@ -26,10 +26,14 @@ This script shows **context-aware popups** to users on your e-commerce site base
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 ```
 
-2. **Add `tracker.js` to your storefront**, ideally at the end of the body:
+2. **Add `tracker.js` to your storefront**, ideally at the end of the body or host it through GithubPages for exmaple:
 
 ```html
-<script src="/path/to/tracker.js" defer></script>
+<script src="/path/to/tracker.js"></script>
+```
+Host example:
+```html
+<script src="https://<your-username>.github.io/shopify-tracker/tracker.js" defer></script>
 ```
 
 3. **Set your backend endpoint** inside `tracker.js`:
