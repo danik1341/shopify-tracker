@@ -31,6 +31,48 @@ function initTracker() {
   }
 
   /**
+   * Display the popup modal with the given message
+   * Auto-dismisses after duration or if manually closed
+   */
+  function showMessage(message) {
+    clearAllPopups();
+    markMessageShown();
+    const prefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)"
+    ).matches;
+
+    const modal = document.createElement("div");
+    modal.className = `
+            shopify-tracker-popup fixed bottom-6 left-6 p-6 rounded-xl z-1000 shadow-lg max-w-lg w-[95%] sm:w-[420px]
+            ${
+              prefersDark
+                ? "bg-gray-800 text-white border border-gray-700"
+                : "bg-white text-gray-800 border border-gray-200"
+            }
+            transition-opacity duration-300 opacity-0
+        `.trim();
+
+    modal.innerHTML = `
+            <div class="text-lg leading-relaxed font-medium">${message}</div>
+            <button class="mt-4 text-sm text-blue-500 underline hover:text-blue-700">Close</button>
+        `;
+
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => (modal.style.opacity = "1"));
+    localStorage.setItem(popupKey, "1");
+
+    modal.querySelector("button").onclick = () => {
+      modal.remove();
+      clearPopupState();
+    };
+
+    setTimeout(() => {
+      modal.remove();
+      clearPopupState();
+    }, CONFIG.MODAL_DURATION);
+  }
+
+  /**
    * Whether a new popup message can be shown.
    * Ignores cooldown for add-to-cart events (they're higher priority).
    */
@@ -57,28 +99,6 @@ function initTracker() {
       .querySelectorAll(".shopify-tracker-popup")
       .forEach((p) => p.remove());
     clearPopupState();
-  }
-
-  /**
-   * Trigger the tracker manually with a reason (page_view, add_to_cart, etc.)
-   * Will skip if not allowed (e.g., due to cooldown), except for add_to_cart events.
-   */
-  async function triggerTracker(reason = "") {
-    if (!canShowMessage(reason)) return;
-
-    try {
-      const payload = await getSessionData(reason);
-      if (!payload) return;
-
-      const res = await axios.post(CONFIG.BACKEND_URL, payload);
-      const data = res.data;
-
-      if (data?.show && data?.message) {
-        showMessage(data.message);
-      }
-    } catch (err) {
-      console.error("Session API error:", err);
-    }
   }
 
   /**
@@ -131,45 +151,25 @@ function initTracker() {
   }
 
   /**
-   * Display the popup modal with the given message
-   * Auto-dismisses after duration or if manually closed
+   * Trigger the tracker manually with a reason (page_view, add_to_cart, etc.)
+   * Will skip if not allowed (e.g., due to cooldown), except for add_to_cart events.
    */
-  function showMessage(message) {
-    clearAllPopups();
-    markMessageShown();
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)"
-    ).matches;
+  async function triggerTracker(reason = "") {
+    if (!canShowMessage(reason)) return;
 
-    const modal = document.createElement("div");
-    modal.className = `
-            shopify-tracker-popup fixed bottom-6 left-6 p-6 rounded-xl z-1000 shadow-lg max-w-lg w-[95%] sm:w-[420px]
-            ${
-              prefersDark
-                ? "bg-gray-800 text-white border border-gray-700"
-                : "bg-white text-gray-800 border border-gray-200"
-            }
-            transition-opacity duration-300 opacity-0
-        `.trim();
+    try {
+      const payload = await getSessionData(reason);
+      if (!payload) return;
 
-    modal.innerHTML = `
-            <div class="text-lg leading-relaxed font-medium">${message}</div>
-            <button class="mt-4 text-sm text-blue-500 underline hover:text-blue-700">Close</button>
-        `;
+      const res = await axios.post(CONFIG.BACKEND_URL, payload);
+      const data = res.data;
 
-    document.body.appendChild(modal);
-    requestAnimationFrame(() => (modal.style.opacity = "1"));
-    localStorage.setItem(popupKey, "1");
-
-    modal.querySelector("button").onclick = () => {
-      modal.remove();
-      clearPopupState();
-    };
-
-    setTimeout(() => {
-      modal.remove();
-      clearPopupState();
-    }, CONFIG.MODAL_DURATION);
+      if (data?.show && data?.message) {
+        showMessage(data.message);
+      }
+    } catch (err) {
+      console.error("Session API error:", err);
+    }
   }
 
   /**
