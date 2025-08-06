@@ -43,7 +43,7 @@ function initTracker() {
 
     const modal = document.createElement("div");
     modal.className = `
-            shopify-tracker-popup fixed bottom-6 left-6 p-6 rounded-xl z-1000 shadow-lg max-w-lg w-[95%] sm:w-[420px]
+            shopify-tracker-popup fixed bottom-6 left-6 p-6 rounded-xl z-2000 shadow-lg max-w-lg w-[95%] sm:w-[420px]
             ${
               prefersDark
                 ? "bg-gray-800 text-white border border-gray-700"
@@ -129,12 +129,13 @@ function initTracker() {
         previousCartCount = currentCartCount;
       }
 
-      if (reason === "page_view" || reason === "home_welcome")
+      if (reason === "page_view" || reason === "home_welcome") {
         eventBuffer.push({
           type: reason,
           url: currentPage,
           at: now(),
         });
+      }
 
       return {
         time_on_site,
@@ -166,6 +167,8 @@ function initTracker() {
 
     const payload = await getSessionData(reason);
     if (!payload) return;
+
+    console.log(`DEBUG: ${payload}`);
 
     try {
       const res = await axios.post(CONFIG.BACKEND_URL, payload);
