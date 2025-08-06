@@ -219,11 +219,18 @@ function initTracker() {
   let previousPath = window.location.pathname;
   setInterval(() => {
     const currentPath = window.location.pathname;
-    if (currentPath !== previousPath) {
-      previousPath = currentPath;
-    }
 
-    if (currentPath !== "/") {
+    if (currentPath === previousPath) return;
+
+    previousPath = currentPath;
+
+    const lastShown = parseInt(localStorage.getItem(cooldownKey), 10) || 0;
+    const isPopupVisible = localStorage.getItem(popupKey) === "1";
+
+    const cooldownPassed = now() - lastShown > CONFIG.POPUP_COOLDOWN;
+    const canShow = !isPopupVisible && cooldownPassed;
+
+    if (canShow && currentPath !== "/") {
       triggerTracker("page_view");
     }
   }, 800);
