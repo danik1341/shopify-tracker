@@ -49,7 +49,6 @@ function initTracker() {
                 ? "bg-gray-800 text-white border border-gray-700"
                 : "bg-white text-gray-800 border border-gray-200"
             }
-            transition-opacity duration-300 opacity-0
         `.trim();
 
     modal.innerHTML = `
@@ -114,26 +113,12 @@ function initTracker() {
       const cart = res.data;
       const currentCartCount = cart.items?.length || 0;
 
-      // const cartItems = cart.items.map((item) => ({
-      //   title: item.title,
-      //   quantity: item.quantity,
-      // }));
       const cartItems = Array.isArray(cart.items)
         ? cart.items.map((item) => ({
             title: item.title,
             quantity: item.quantity,
           }))
         : [];
-
-      console.log("DEBUG cart raw response:", cart);
-      console.log("DEBUG cart items extracted:", cartItems);
-      console.log("DEBUG payload before sending:", {
-        time_on_site,
-        current_page,
-        cart_items: cartItems,
-        current_cart_count: currentCartCount,
-        events: [...eventBuffer],
-      });
 
       // Detect cart changes
       if (currentCartCount !== previousCartCount) {
