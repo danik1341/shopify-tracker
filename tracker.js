@@ -114,6 +114,11 @@ function initTracker() {
       const cart = res.data;
       const currentCartCount = cart.items?.length || 0;
 
+      const cartItems = cart.items.map((item) => ({
+        title: item.title,
+        quantity: item.quantity,
+      }));
+
       // Detect cart changes
       if (currentCartCount !== previousCartCount) {
         eventBuffer.push({
@@ -134,7 +139,8 @@ function initTracker() {
       return {
         time_on_site,
         current_page,
-        cart_items: currentCartCount,
+        cart_items: cartItems,
+        current_cart_count: currentCartCount,
         events: [...eventBuffer],
       };
     } catch (err) {
@@ -142,7 +148,8 @@ function initTracker() {
       return {
         time_on_site,
         current_page,
-        cart_items: 0,
+        cart_items: [],
+        current_cart_count: 0,
         events: [],
       };
     } finally {
@@ -155,12 +162,11 @@ function initTracker() {
    * Will skip if not allowed (e.g., due to cooldown), except for add_to_cart events.
    */
   async function triggerTracker(reason = "") {
+    const payload = await getSessionData(reason);
+
     if (!canShowMessage(reason)) return;
 
     try {
-      const payload = await getSessionData(reason);
-      if (!payload) return;
-
       const res = await axios.post(CONFIG.BACKEND_URL, payload);
       const data = res.data;
 
@@ -238,7 +244,7 @@ function initTracker() {
     if (canShow && currentPath !== "/") {
       delayedPageViewTrigger();
     }
-  }, 800);
+  }, 1000);
 
   // Fire periodic pings every 60s (PING_INTERVAL) — only if allowed to show message
   setInterval(() => {
