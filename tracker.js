@@ -148,7 +148,7 @@ function initTracker() {
       if (reason === "page_view" || reason === "home_welcome") {
         eventBuffer.push({
           type: reason,
-          url: currentPage,
+          url: current_page,
           at: now(),
         });
       }
