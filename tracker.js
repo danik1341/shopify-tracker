@@ -212,6 +212,11 @@ function initTracker() {
   const path = window.location.pathname;
   triggerTracker(path === "/" ? "home_welcome" : "page_view");
 
+  async function delayedPageViewTrigger() {
+    await new Promise((res) => setTimeout(res, 300));
+    triggerTracker("page_view");
+  }
+
   /**
    * Listen for SPA-style page navigation changes
    * Trigger appropriate page view (real page switches)
@@ -231,7 +236,7 @@ function initTracker() {
     const canShow = !isPopupVisible && cooldownPassed;
 
     if (canShow && currentPath !== "/") {
-      triggerTracker("page_view");
+      delayedPageViewTrigger();
     }
   }, 800);
 
