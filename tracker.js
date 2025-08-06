@@ -169,8 +169,6 @@ function initTracker() {
     const payload = await getSessionData(reason);
     if (!payload) return;
 
-    console.log("DEBUG Payload:", payload);
-
     try {
       const res = await axios.post(CONFIG.BACKEND_URL, payload);
       const data = res.data;
