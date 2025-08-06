@@ -173,13 +173,6 @@ function initTracker() {
   }
 
   /**
-   * Listen for SPA-style page navigation changes
-   * Trigger appropriate page view or welcome event
-   */
-  const path = window.location.pathname;
-  triggerTracker(path === "/" ? "home_welcome" : "page_view");
-
-  /**
    * Listen for add-to-cart clicks.
    * Triggers an "add_to_cart" event if the item appears in the cart afterward.
    */
@@ -212,10 +205,28 @@ function initTracker() {
 
   // === Initial Triggers ===
 
-  // Fire "welcome" message on initial load if home page
-  if (window.location.pathname === "/") {
-    triggerTracker("home_welcome");
-  }
+  /**
+   * Listen for SPA-style page navigation changes
+   * Trigger once on load appropriate page view or welcome event message
+   */
+  const path = window.location.pathname;
+  triggerTracker(path === "/" ? "home_welcome" : "page_view");
+
+  /**
+   * Listen for SPA-style page navigation changes
+   * Trigger appropriate page view (real page switches)
+   */
+  let previousPath = window.location.pathname;
+  setInterval(() => {
+    const currentPath = window.location.pathname;
+    if (currentPath !== previousPath) {
+      previousPath = currentPath;
+    }
+
+    if (currentPath !== "/") {
+      triggerTracker("page_view");
+    }
+  }, 800);
 
   // Fire periodic pings every 60s (PING_INTERVAL) — only if allowed to show message
   setInterval(() => {
