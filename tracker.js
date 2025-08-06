@@ -43,7 +43,7 @@ function initTracker() {
 
     const modal = document.createElement("div");
     modal.className = `
-            shopify-tracker-popup fixed bottom-6 left-6 p-6 rounded-xl z-2000 shadow-lg max-w-lg w-[95%] sm:w-[420px]
+            shopify-tracker-popup fixed bottom-6 left-6 p-6 rounded-xl z-100 shadow-lg max-w-lg w-[95%] sm:w-[420px]
             ${
               prefersDark
                 ? "bg-gray-800 text-white border border-gray-700"
@@ -168,7 +168,7 @@ function initTracker() {
     const payload = await getSessionData(reason);
     if (!payload) return;
 
-    console.log(`DEBUG: ${payload}`);
+    console.log("DEBUG Payload:", payload);
 
     try {
       const res = await axios.post(CONFIG.BACKEND_URL, payload);
