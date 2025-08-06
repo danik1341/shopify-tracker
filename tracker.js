@@ -162,9 +162,10 @@ function initTracker() {
    * Will skip if not allowed (e.g., due to cooldown), except for add_to_cart events.
    */
   async function triggerTracker(reason = "") {
-    const payload = await getSessionData(reason);
-
     if (!canShowMessage(reason)) return;
+
+    const payload = await getSessionData(reason);
+    if (!payload) return;
 
     try {
       const res = await axios.post(CONFIG.BACKEND_URL, payload);
